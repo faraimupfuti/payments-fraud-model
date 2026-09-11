@@ -17,7 +17,8 @@ institution's data.
 | `features.py` | Shared feature engineering, used by both training and the app |
 | `train_model.py` | Trains/evaluates Logistic Regression and Random Forest models (standalone report) |
 | `save_models.py` | Trains and pickles both pipelines into `models/` for the Streamlit app |
-| `streamlit_app.py` | **The live app** — interactive fraud scoring console |
+| `streamlit_app.py` | **The technical app** — sliders, full metrics, per-transaction coefficient breakdown |
+| `explainer_app.py` | **The plain-language app** — same real model, no jargon, story-driven, three-button verdicts (best for non-technical reviewers) |
 | `requirements.txt` | Python dependencies for the Streamlit app |
 | `models/rf_pipeline.joblib` | Trained Random Forest pipeline (the one scoring transactions live in the app) |
 | `models/lr_pipeline.joblib` | Trained Logistic Regression pipeline (used for the per-transaction explanation) |
@@ -29,7 +30,8 @@ institution's data.
 
 ```bash
 pip install -r requirements.txt
-streamlit run streamlit_app.py
+streamlit run streamlit_app.py       # technical version
+streamlit run explainer_app.py       # plain-language version
 ```
 
 This opens the console at `http://localhost:8501`. The `models/` folder

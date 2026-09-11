@@ -1,5 +1,5 @@
 """
-Beacon — Fraud detection console for a national payment switch
+Zimswitch Fraud Console — unofficial portfolio demo
 =================================================================
 Streamlit app. Scores what-if transactions live using the actual trained
 Random Forest pipeline (same model evaluated in the metrics below), and
@@ -61,7 +61,7 @@ SCENARIOS = {
 DEFAULTS = SCENARIOS["Typical purchase"]
 FIELD_KEYS = ["channel", "mcc", "amount", "currency", "hour", "dow", "gap", "dist", "t1h", "t24h", "avg", "std"]
 
-st.set_page_config(page_title="Beacon — Fraud Console", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="Zimswitch Fraud Console", page_icon="🛡️", layout="wide")
 
 
 @st.cache_resource
@@ -103,8 +103,8 @@ div[data-testid="stMetricValue"] { font-family: 'Space Grotesk', sans-serif; }
 # ---------- Header ----------
 col_title, col_status = st.columns([4, 1])
 with col_title:
-    st.markdown("## 🛡️ Beacon")
-    st.caption("Fraud detection for interbank switch traffic — synthetic demo")
+    st.markdown("## 🛡️ Zimswitch Fraud Console")
+    st.caption("Fraud detection for interbank switch traffic — unofficial portfolio demo, synthetic data")
 with col_status:
     st.markdown("<div style='text-align:right; padding-top:18px; color:#2FA77E;'>● scoring live</div>",
                 unsafe_allow_html=True)
@@ -268,6 +268,7 @@ st.dataframe(flagged_df, use_container_width=True, hide_index=True)
 
 st.divider()
 st.caption(
-    "Synthetic demo — no real cardholder, account, or transaction data is used anywhere in this "
-    "project. Not affiliated with or endorsed by Zimswitch; built as a technical portfolio piece."
+    "⚠️ Unofficial portfolio project, not affiliated with, endorsed by, or built for Zimswitch. "
+    "Made independently to demonstrate fraud-detection skills for a job application. All data is "
+    "synthetic — no real cardholder, account, or transaction data is used anywhere in this project."
 )
