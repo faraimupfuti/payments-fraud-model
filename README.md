@@ -1,128 +1,106 @@
-# Payment Switch Fraud Detection — Synthetic Data Project
+# Zimswitch Fraud Detection System
 
-A portfolio project simulating fraud detection on a national payment
-switch (structured like Zimswitch): multi-bank POS, ATM, ZIPIT-style
-transfers, and mobile-money interoperability.
+An unofficial portfolio project: a real-time fraud detection system split
+into two independently deployable pieces, the way a production system
+would actually be built.
 
-**All data is synthetic** — generated programmatically, no real
-cardholder or transaction data of any kind. This is a safe way to build
-and demonstrate fraud-detection skills without needing access to a real
-institution's data.
+```
+zimswitch-fraud-system/
+├── api/                    ← the model-serving backend (FastAPI)
+│   ├── main.py             ← the API itself
+│   ├── features.py         ← shared feature engineering + explanation logic
+│   ├── models/              ← the trained Random Forest pipeline
+│   ├── requirements.txt
+│   └── render.yaml         ← one-file Render deployment config
+│
+└── app/                    ← the user-facing frontend (Streamlit)
+    ├── streamlit_frontend.py  ← calls the API over HTTP, has no model in it
+    └── requirements.txt
+```
+
+**Why split it this way?** In a real payments company, the fraud model
+doesn't live inside the app someone clicks around in — it runs as its
+own service that any number of clients (a web dashboard, a mobile app,
+a batch job) can call. This project mirrors that: the API can be
+redeployed, scaled, or swapped for a better model without touching the
+frontend at all, and the frontend could be a mobile app instead of
+Streamlit tomorrow without touching the model.
+
+## What it does
+
+**Check one transaction** — type in amount, city, time, how it compares
+to that card's recent activity — and click Analyze. The frontend sends
+it to the API, which scores it and returns a plain verdict plus a
+checklist of what it looked at and why.
+
+**Upload a file of transactions** — upload a CSV of raw transactions
+(a sample template is provided in the app) and every row gets scored
+in one request. The API computes each card's behavioral features —
+transaction velocity, travel speed between locations, deviation from
+that card's typical spend — directly from the transaction history in
+the file, the same way the model was trained. Results come back as a
+table with a fraud probability and verdict per row, plus a downloadable
+CSV.
+
+Both paths call the same trained Random Forest (99.5% ROC-AUC on
+held-out data) through the same API.
+
+## Running it locally (both pieces)
+
+**Terminal 1 — start the API:**
+```bash
+cd api
+pip install -r requirements.txt
+uvicorn main:app --reload
+```
+Visit `http://127.0.0.1:8000/docs` to see and test the API directly —
+FastAPI generates interactive docs automatically. This is worth showing
+in an interview: a working, documented API, independent of any UI.
+
+**Terminal 2 — start the frontend:**
+```bash
+cd app
+pip install -r requirements.txt
+streamlit run streamlit_frontend.py
+```
+The frontend defaults to `http://127.0.0.1:8000`, so it'll find the
+locally-running API automatically.
+
+## Deploying it for real (both free)
+
+**1. Deploy the API to Render:**
+- Push the `api/` folder to a GitHub repo (its own repo, or a subfolder — Render lets you set a root directory)
+- On [render.com](https://render.com): New → Web Service → connect the repo
+- Render will detect `render.yaml` and configure itself, or set manually:
+  - Build command: `pip install -r requirements.txt`
+  - Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+- Deploy. You'll get a URL like `https://zimswitch-fraud-api.onrender.com`
+- Note: Render's free tier spins down after inactivity, so the first request after a while takes 30-60 seconds to wake up — worth mentioning if you demo this live.
+
+**2. Deploy the frontend to Streamlit Community Cloud:**
+- Push the `app/` folder to a repo (or a subfolder of the same repo)
+- On [share.streamlit.io](https://share.streamlit.io): New app → point at `streamlit_frontend.py`
+- In the app's sidebar once it's live, paste your Render API URL into the "Fraud detection API URL" field — or set it permanently via an `API_URL` entry in the app's Secrets
+
+You'll end up with two public URLs: one for the API (with live `/docs`),
+one for the interactive frontend that talks to it.
 
 ## Files
 
-| File | Description |
+| File | What it does |
 |---|---|
-| `generate_data.py` | Generates `transactions.csv` (~61k transactions, 4,000 synthetic cards) with 5 injected fraud patterns |
-| `features.py` | Shared feature engineering, used by both training and the app |
-| `train_model.py` | Trains/evaluates Logistic Regression and Random Forest models (standalone report) |
-| `save_models.py` | Trains and pickles both pipelines into `models/` for the Streamlit app |
-| `fraud_detector_app.py` | **⭐ Recommended for review** — free-form transaction entry, live step-by-step model scan, clear fraud/clean verdict |
-| `streamlit_app.py` | The technical app — sliders, full metrics, per-transaction coefficient breakdown |
-| `explainer_app.py` | The plain-language app — same real model, no jargon, story-driven, preset scenarios |
-| `requirements.txt` | Python dependencies for the Streamlit app |
-| `models/rf_pipeline.joblib` | Trained Random Forest pipeline (the one scoring transactions live in the app) |
-| `models/lr_pipeline.joblib` | Trained Logistic Regression pipeline (used for the per-transaction explanation) |
-| `models/metadata.json` | Evaluation metrics, feature importances, and sample flagged transactions |
-| `transactions.csv` | The generated dataset |
-| `cards.csv` | Synthetic card/cardholder profiles (home city, average spend) |
+| `api/main.py` | FastAPI app: loads the model once at startup, exposes `/predict` (single transaction), `/predict_batch` (CSV upload), `/health`, `/metadata`, `/cities` |
+| `api/features.py` | Feature engineering (both single-transaction and batch/historical) and the plain-language checklist logic |
+| `api/models/rf_pipeline.joblib` | The trained Random Forest pipeline |
+| `api/models/metadata.json` | Evaluation metrics (ROC-AUC, confusion matrix, feature importance) served via `/metadata` |
+| `app/streamlit_frontend.py` | The UI — two tabs, single transaction and bulk CSV upload, both pure frontend, no model, everything goes through the API |
+| `app/sample_template.csv` | Example file showing the exact columns the batch upload expects |
 
-## Running the app
+Full training pipeline, dataset generator, and the standalone (non-split)
+Streamlit apps from earlier iterations of this project are available
+separately if useful for context on how the model was built.
 
-```bash
-pip install -r requirements.txt
-streamlit run fraud_detector_app.py  # recommended — type in a transaction, get a live verdict
-streamlit run streamlit_app.py       # technical version
-streamlit run explainer_app.py       # plain-language, preset-scenario version
-```
-
-This opens the console at `http://localhost:8501`. The `models/` folder
-already contains trained pipelines, so it starts instantly — no need to
-regenerate data or retrain unless you want to.
-
-To regenerate everything from scratch:
-```bash
-python generate_data.py   # rebuilds transactions.csv
-python save_models.py     # retrains and re-pickles both models
-```
-
-## Deploying it publicly (free)
-
-1. Push this whole folder to a GitHub repo (public or private).
-2. Go to [share.streamlit.io](https://share.streamlit.io), sign in with
-   GitHub, and click "New app".
-3. Point it at your repo, branch, and `streamlit_app.py` as the main file.
-4. Deploy. You'll get a public URL like
-   `https://your-username-beacon-fraud.streamlit.app` you can put on a CV,
-   LinkedIn, or send directly to Zimswitch.
-
-The repo is small enough (~9 MB, mostly the pickled Random Forest) to
-deploy comfortably on Streamlit Community Cloud's free tier.
-
-## Dataset design
-
-Transactions span 6 banks-worth of issuers/acquirers (CBZ, Stanbic, FBC,
-Steward, ZB, NMB, CABS, Ecobank, BancABC, POSB), 5 channels (POS, ATM,
-ZIPIT, Mobile Money, Internet Banking), and two currencies (ZWG, USD),
-mirroring how a real switch aggregates interbank and mobile-money
-interoperability traffic.
-
-**Fraud rate: ~2%**, in line with real-world card fraud prevalence —
-this matters because it forces you to handle severe class imbalance
-rather than a toy 50/50 dataset.
-
-### Injected fraud patterns
-1. **Card testing** — many small (<$3), rapid transactions on one card, typical of criminals validating stolen card numbers
-2. **Velocity abuse** — unusually frequent transactions in a short window
-3. **Amount anomaly** — a transaction far above the card's historical spending profile
-4. **Geographic jump ("impossible travel")** — two transactions too far apart geographically to be physically possible in the elapsed time
-5. **Odd-hour high value** — large transactions at 1–4 AM
-
-## Modeling approach
-
-Feature engineering is done **causally** — every behavioral feature
-(running average spend, transaction velocity, implied travel speed) is
-computed using only transactions *prior* to the current one, avoiding
-label/target leakage that's a common mistake in fraud-detection
-projects.
-
-Key engineered features:
-- `implied_speed_kmh` — distance-over-time between consecutive
-  transactions on the same card ("impossible travel" signal)
-- `txn_count_1h` / `txn_count_24h` — trailing transaction velocity
-- `amount_zscore` — deviation from the card's own running average spend
-- `seconds_since_prev` — time gap since the card's last transaction
-
-Two models are trained and compared:
-- **Logistic Regression** (interpretable baseline, `class_weight="balanced"`)
-- **Random Forest** (captures non-linear interactions between features)
-
-### Results
-
-| Model | ROC-AUC | PR-AUC | Fraud Recall | Fraud Precision |
-|---|---|---|---|---|
-| Logistic Regression | 0.986 | 0.919 | 0.92 | 0.48 |
-| Random Forest | 0.995 | 0.948 | 0.88 | 0.93 |
-
-PR-AUC (precision-recall AUC) is reported alongside ROC-AUC because
-with ~2% fraud prevalence, ROC-AUC alone can look deceptively good —
-PR-AUC is the more honest metric for imbalanced fraud problems.
-
-## How to extend this for an interview
-
-- Swap in **XGBoost/LightGBM** and compare against the Random Forest
-- Add a **cost-sensitive evaluation**: assign a real monetary cost to
-  false negatives (missed fraud) vs. false positives (blocked
-  legitimate customers) and pick the decision threshold that
-  minimizes expected cost, not just F1
-- Try **graph-based features** — shared devices/IPs across cards is a
-  strong real-world fraud signal this synthetic dataset doesn't model
-- Discuss **concept drift** — fraud patterns change over time, so a
-  production system needs monitoring and periodic retraining, not a
-  one-off model
-- Talk through the **precision/recall tradeoff** in a live interview:
-  in payments, a false positive means blocking a real customer's
-  transaction (bad for user experience and revenue), while a false
-  negative means fraud losses — the "right" threshold depends on the
-  business's cost structure, which is a great thing to discuss with
-  interviewers rather than just optimizing accuracy
+---
+⚠️ Unofficial portfolio project. Not affiliated with, endorsed by, or
+built for Zimswitch. All data is synthetic — no real cardholder,
+account, or transaction data is used anywhere in this project.
